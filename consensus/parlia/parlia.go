@@ -1514,6 +1514,10 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
+	if header.Number.Uint64() == 90 {
+		log.Info("header.Number.Uint64()", "header", header.Number.Uint64())
+		log.Info("balance info", "balance", balance)
+	}
 	if balance.Cmp(common.Big0) <= 0 {
 		return nil
 	}
@@ -1524,6 +1528,10 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	if doDistributeSysReward {
 		var rewards = new(big.Int)
 		rewards = rewards.Rsh(balance, systemRewardPercent)
+		if header.Number.Uint64() == 90 {
+			log.Info("header.Number.Uint64()", "header", header.Number.Uint64())
+			log.Info("reward info", "reward", balance)
+		}
 		if rewards.Cmp(common.Big0) > 0 {
 			err := p.distributeToSystem(rewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 			if err != nil {
@@ -1531,6 +1539,9 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 			}
 			log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", rewards)
 			balance = balance.Sub(balance, rewards)
+			if header.Number.Uint64() == 90 {
+				log.Info("balance after Sub info", "balance", balance)
+			}
 		}
 	}
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
@@ -1645,6 +1656,11 @@ func (p *Parlia) applyTransaction(
 	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
 	expectedHash := p.signer.Hash(expectedTx)
 
+	if header.Number.Uint64() == 90 {
+		log.Info("header.Number.Uint64()")
+		log.Info("expectedTx", "expect", expectedTx)
+		log.Info("actualTx", "expect value", expectedTx.Value())
+	}
 	if msg.From() == p.val && mining {
 		expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
 		if err != nil {
@@ -1655,6 +1671,11 @@ func (p *Parlia) applyTransaction(
 			return errors.New("supposed to get a actual transaction, but get none")
 		}
 		actualTx := (*receivedTxs)[0]
+		if header.Number.Uint64() == 90 {
+			log.Info("header.Number.Uint64()")
+			log.Info("actualTx", "actual", actualTx)
+			log.Info("actualTx", "actual value", actualTx.Value())
+		}
 		if !bytes.Equal(p.signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
 			return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
 				expectedTx.Nonce(),
