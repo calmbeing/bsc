@@ -67,6 +67,9 @@ type Node struct {
 	inprocHandler *rpc.Server // In-process RPC request handler to process the API requests
 
 	databases map[*closeTrackingDB]struct{} // All open databases
+
+	// Channel to Subscribe to the finalized block number for database usage
+	FinalizedCh chan rawdb.FinalizedHeaderEvent
 }
 
 const (
@@ -146,6 +149,7 @@ func New(conf *Config) (*Node, error) {
 		stop:          make(chan struct{}),
 		server:        &p2p.Server{Config: conf.P2P},
 		databases:     make(map[*closeTrackingDB]struct{}),
+		FinalizedCh:   make(chan rawdb.FinalizedHeaderEvent),
 	}
 
 	// Register built-in APIs.
@@ -756,12 +760,13 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 		db = rawdb.NewMemoryDatabase()
 	} else {
 		db, err = rawdb.Open(rawdb.OpenOptions{
-			Type:      n.config.DBEngine,
-			Directory: n.ResolvePath(name),
-			Namespace: namespace,
-			Cache:     cache,
-			Handles:   handles,
-			ReadOnly:  readonly,
+			Type:             n.config.DBEngine,
+			Directory:        n.ResolvePath(name),
+			Namespace:        namespace,
+			Cache:            cache,
+			Handles:          handles,
+			ReadOnly:         readonly,
+			FinalizedEventCh: n.FinalizedCh,
 		})
 	}
 
@@ -819,6 +824,7 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient,
 			IsLastOffset:      isLastOffset,
 			PruneAncientData:  pruneAncientData,
 		})
+
 	}
 
 	if err == nil {

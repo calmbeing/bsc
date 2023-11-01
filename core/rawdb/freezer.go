@@ -75,6 +75,9 @@ type Freezer struct {
 	instanceLock *flock.Flock             // File-system lock to prevent double opens
 	closeOnce    sync.Once
 	offset       uint64 // Starting BlockNumber in current freezer
+
+	finalizedCh       chan FinalizedHeaderEvent
+	boundPrunerEnable bool
 }
 
 // NewChainFreezer is a small utility method around NewFreezer that sets the

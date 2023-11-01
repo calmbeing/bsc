@@ -67,4 +67,10 @@ const (
 	// the downloader as a hard limit against deep ancestors, by the blockchain against deep
 	// reorgs, by the light pruner as the pruning validity guarantee.
 	LightImmutabilityThreshold = 30000
+
+	// The starting block height of the first segment, block 31,268,530 was produced on Aug-29-2023, 3 years after the BSC genesis block.
+	BoundStartBlock = 31268530
+
+	// Assume 1 block for every 3 second, 2,592,000 blocks will be produced in 90 days.
+	HistorySegmentLength = 2592000
 )

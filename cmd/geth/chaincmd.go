@@ -238,6 +238,49 @@ func initGenesis(ctx *cli.Context) error {
 	return nil
 }
 
+// initSegmentBound will initialise the given JSON format segment boundary file and writes it as
+// the new so-called 'genesis' block (i.e. segment boundary) or will fail hard if it can't succeed.
+func initSegmentBound(ctx *cli.Context) error {
+	if ctx.Args().Len() != 1 {
+		utils.Fatalf("need segmentBound.json file as the only argument")
+	}
+	boundPath := ctx.Args().First()
+	if len(boundPath) == 0 {
+		utils.Fatalf("invalid path to boundPath file")
+	}
+	file, err := os.Open(boundPath)
+	if err != nil {
+		utils.Fatalf("Failed to read bound file: %v", err)
+	}
+	defer file.Close()
+
+	boundGenesis := new(core.Genesis)
+	if err := json.NewDecoder(file).Decode(boundGenesis); err != nil {
+		utils.Fatalf("invalid boundGenesis file: %v", err)
+	}
+	// Open and initialise both full and light databases
+	stack, _ := makeConfigNode(ctx)
+	defer stack.Close()
+
+	for _, name := range []string{"chaindata", "lightchaindata"} {
+		chaindb, err := stack.OpenDatabaseWithFreezer(name, 0, 0, ctx.String(utils.AncientFlag.Name), "", false, false, false, false)
+		if err != nil {
+			utils.Fatalf("Failed to open database: %v", err)
+		}
+		defer chaindb.Close()
+
+		triedb := utils.MakeTrieDatabase(ctx, chaindb, ctx.Bool(utils.CachePreimagesFlag.Name), false)
+		defer triedb.Close()
+
+		_, hash, err := core.SetupGenesisBlock(chaindb, triedb, boundGenesis)
+		if err != nil {
+			utils.Fatalf("Failed to write boundGenesis block: %v", err)
+		}
+		log.Info("Successfully wrote boundGenesis state", "database", name, "hash", hash)
+	}
+	return nil
+}
+
 func parseIps(ipStr string, size int) ([]string, error) {
 	var ips []string
 	if len(ipStr) != 0 {

@@ -29,6 +29,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
@@ -42,6 +44,8 @@ type freezerdb struct {
 	ethdb.AncientStore
 	diffStore ethdb.KeyValueStore
 }
+
+type FinalizedHeaderEvent struct{ Header []*types.Header }
 
 // AncientDatadir returns the path of root ancient directory.
 func (frdb *freezerdb) AncientDatadir() (string, error) {
@@ -243,7 +247,7 @@ func resolveChainFreezerDir(ancient string) string {
 // value data store with a freezer moving immutable chain segments into cold
 // storage. The passed ancient indicates the path of root ancient directory
 // where the chain freezer can be opened.
-func NewDatabaseWithFreezer(db ethdb.KeyValueStore, ancient string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData bool) (ethdb.Database, error) {
+func NewDatabaseWithFreezer(db ethdb.KeyValueStore, ancient string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData bool, historyBoundMaintain bool, finalizedCh chan FinalizedHeaderEvent) (ethdb.Database, error) {
 	var offset uint64
 	// The offset of ancientDB should be handled differently in different scenarios.
 	if isLastOffset {
@@ -281,6 +285,22 @@ func NewDatabaseWithFreezer(db ethdb.KeyValueStore, ancient string, namespace st
 	if err != nil {
 		printChainMetadata(db)
 		return nil, err
+	}
+
+	if historyBoundMaintain && !disableFreeze && !readonly {
+		// //	frdb, err := newBoundPrunerFreezer(resolveChainFreezerDir(ancient), db, offset)
+		// if err != nil {
+		// 	return nil, err
+		// }
+
+		// go frdb.freeze()
+		// if !readonly {
+		// 	WriteAncientType(db, PruneFreezerType)
+		// }
+		// return &freezerdb{
+		// 	KeyValueStore: db,
+		// 	AncientStore:  frdb,
+		// }, nil
 	}
 
 	// Since the freezer can be stored separately from the user's key-value database,
@@ -457,9 +477,11 @@ type OpenOptions struct {
 	Handles           int    // number of files to be open simultaneously
 	ReadOnly          bool
 
-	DisableFreeze    bool
-	IsLastOffset     bool
-	PruneAncientData bool
+	DisableFreeze        bool
+	IsLastOffset         bool
+	PruneAncientData     bool
+	historyBoundMaintain bool
+	FinalizedEventCh     chan FinalizedHeaderEvent
 }
 
 // openKeyValueDatabase opens a disk-based key-value database, e.g. leveldb or pebble.
@@ -514,7 +536,7 @@ func Open(o OpenOptions) (ethdb.Database, error) {
 	if len(o.AncientsDirectory) == 0 {
 		return kvdb, nil
 	}
-	frdb, err := NewDatabaseWithFreezer(kvdb, o.AncientsDirectory, o.Namespace, o.ReadOnly, o.DisableFreeze, o.IsLastOffset, o.PruneAncientData)
+	frdb, err := NewDatabaseWithFreezer(kvdb, o.AncientsDirectory, o.Namespace, o.ReadOnly, o.DisableFreeze, o.IsLastOffset, o.PruneAncientData, o.historyBoundMaintain, o.FinalizedEventCh)
 	if err != nil {
 		kvdb.Close()
 		return nil, err

@@ -242,6 +242,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Subscribe to the headerEvent to get the finalized block event
+	eth.blockchain.SubscribeChainHeadEventForDB(stack.FinalizedCh)
 	eth.bloomIndexer.Start(eth.blockchain)
 
 	if config.BlobPool.Datadir != "" {

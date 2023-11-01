@@ -96,6 +96,18 @@ func (f *chainFreezer) freeze(db ethdb.KeyValueStore) {
 		case <-f.quit:
 			log.Info("Freezer shutting down")
 			return
+		case h := <-f.finalizedCh:
+			finalizedBlockNum := h.Header[1].Number.Uint64()
+			curBlockNum := h.Header[0].Number.Uint64()
+			blockByThreshold := curBlockNum - params.FullImmutabilityThreshold
+			if finalizedBlockNum < blockByThreshold {
+				finalizedBlockNum = blockByThreshold
+			}
+			segIndex := GetCurrentSegmentIndex(finalizedBlockNum)
+			if segIndex >= 2 {
+				// the segments before (segIndex - 2) can be pruned
+
+			}
 		default:
 		}
 		if backoff {
@@ -300,4 +312,12 @@ func (f *chainFreezer) freezeRange(nfdb *nofreezedb, number, limit uint64) (hash
 	})
 
 	return hashes, err
+}
+
+func GetCurrentSegmentIndex(blockNumber uint64) uint64 {
+	if blockNumber <= params.BoundStartBlock {
+		return 0
+	}
+	blockAfterBoundStart := blockNumber - params.BoundStartBlock
+	return blockAfterBoundStart/params.HistorySegmentLength + 1
 }
